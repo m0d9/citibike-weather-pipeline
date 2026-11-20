@@ -62,6 +62,12 @@ DAG `citibike_weather_pipeline` (schedule: monthly):
 | core | `dim_station` | one row per station, with name and location |
 | marts | `mart_daily_rides`, `mart_rider_mix`, `mart_hourly_usage`, `mart_weather_impact`, `mart_station_usage` | small tables for the dashboard |
 
+## Dashboard
+
+With January to June 2025 loaded (20.1 million trips from 2,337 stations), the six monthly runs took about 13 minutes on a MacBook M3 Pro.
+
+![Metabase dashboard](docs/dashboard.png)
+
 ## How to run
 
 You need Docker Desktop with at least 8 GB of memory for Docker (10 GB is better) and about 15 GB of free disk.

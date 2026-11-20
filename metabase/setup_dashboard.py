@@ -53,14 +53,14 @@ CARDS = [
                 "Mean temperature (°C)": {"display": "line", "axis": "right"},
             },
             "graph.x_axis.title_text": "Date",
-            "graph.y_axis.title_text": "Trips",
         },
         (0, 5, 24, 8),
     ),
     (
         "Trips by rider type and bike type", "Members vs casual riders, split by classic and electric bikes.", "bar",
-        "select rider_type as \"Rider type\", replace(bike_type, '_', ' ') as \"Bike type\", trips as \"Trips\" "
-        "from marts.mart_rider_mix order by 1, 2",
+        "select initcap(rider_type) as \"Rider type\", "
+        "case bike_type when 'classic_bike' then 'Classic bike' when 'electric_bike' then 'Electric bike' else bike_type end "
+        "as \"Bike type\", trips as \"Trips\" from marts.mart_rider_mix order by 1, 2",
         {
             "graph.dimensions": ["Rider type", "Bike type"],
             "graph.metrics": ["Trips"],
