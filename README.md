@@ -10,18 +10,18 @@ A monthly batch pipeline that loads New York Citi Bike trips and daily NYC weath
 
 ```mermaid
 flowchart LR
-    A[Citi Bike monthly trip files] --> C[download]
-    B[Open-Meteo weather API] --> C
-    subgraph Airflow DAG, one run per month
-        C --> D[(MinIO raw)]
-        D --> E[Spark clean]
-        E --> F[(MinIO clean, Parquet)]
-        F --> G[Spark load]
-        G --> H[(Postgres staging)]
-        H --> I[dbt build and tests]
-        I --> J[(Postgres core and marts)]
+    A["Citi Bike monthly trip files"] --> C["download"]
+    B["Open-Meteo weather API"] --> C
+    subgraph dag["Airflow DAG (one run per month)"]
+        C --> D[("MinIO raw")]
+        D --> E["Spark clean"]
+        E --> F[("MinIO clean (Parquet)")]
+        F --> G["Spark load"]
+        G --> H[("Postgres staging")]
+        H --> I["dbt build and tests"]
+        I --> J[("Postgres core and marts")]
     end
-    J --> K[Metabase dashboard]
+    J --> K["Metabase dashboard"]
 ```
 
 | Part | Tool | Why |
