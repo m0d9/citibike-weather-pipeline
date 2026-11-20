@@ -1,0 +1,11 @@
+version: 2
+
+sources:
+  - name: staging
+    description: Cleaned data loaded by Spark, one month at a time.
+    schema: staging
+    tables:
+      - name: trips
+        description: One row per Citi Bike trip.
+      - name: weather
+        description: One row per day of NYC weather (Central Park).

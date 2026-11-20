@@ -1,0 +1,26 @@
+version: 2
+
+models:
+  - name: mart_daily_rides
+    description: Trips per day with the weather of that day.
+    columns:
+      - name: ride_date
+        data_tests:
+          - unique
+          - not_null
+
+  - name: mart_weather_impact
+    description: Average trips per day for each temperature band, split into wet and dry days.
+
+  - name: mart_hourly_usage
+    description: Average trips started in each hour of the day, weekdays vs weekends.
+
+  - name: mart_rider_mix
+    description: Trips, average duration and distance by rider type and bike type.
+
+  - name: mart_station_usage
+    description: Trips started and ended at each station.
+    columns:
+      - name: station_id
+        data_tests:
+          - unique

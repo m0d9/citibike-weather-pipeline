@@ -1,0 +1,164 @@
+x-airflow-common: &airflow-common
+  build: ./airflow
+  image: citibike-airflow:2.10.5
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__WEBSERVER__SECRET_KEY: citibike-local-secret
+    AIRFLOW__WEBSERVER__WORKERS: "2"
+    MINIO_ENDPOINT: http://minio:9000
+    MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+    MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    WAREHOUSE_HOST: warehouse
+    WAREHOUSE_PORT: "5432"
+    WAREHOUSE_DB: ${WAREHOUSE_DB:-warehouse}
+    WAREHOUSE_USER: ${WAREHOUSE_USER:-dw}
+    WAREHOUSE_PASSWORD: ${WAREHOUSE_PASSWORD:-dw}
+    SPARK_MASTER_URL: ${SPARK_MASTER_URL:-spark://spark-master:7077}
+    SPARK_DRIVER_HOST: airflow-scheduler
+    PIPELINE_START_MONTH: ${PIPELINE_START_MONTH:-2025-01}
+    PIPELINE_END_MONTH: ${PIPELINE_END_MONTH:-2025-06}
+    METABASE_URL: http://metabase:3000
+    METABASE_ADMIN_EMAIL: ${METABASE_ADMIN_EMAIL:-admin@citibike.local}
+    METABASE_ADMIN_PASSWORD: ${METABASE_ADMIN_PASSWORD:-Citibike-Admin-2025}
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./spark/jobs:/opt/airflow/jobs
+    - ./dbt:/opt/airflow/dbt
+    - ./metabase:/opt/airflow/metabase
+    - airflow-logs:/opt/airflow/logs
+  depends_on: &airflow-depends
+    airflow-db:
+      condition: service_healthy
+
+x-spark-common: &spark-common
+  build: ./spark
+  image: citibike-spark:3.5.9
+
+services:
+  # data lake (MinIO; the official minio/minio images were removed from Docker Hub
+  # in September 2026, so this uses the community build of the same server)
+  minio:
+    image: pgsty/silo:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  # data warehouse
+  warehouse:
+    image: postgres:16
+    command: >
+      postgres -c shared_buffers=512MB -c work_mem=64MB
+      -c maintenance_work_mem=256MB -c max_wal_size=2GB
+    environment:
+      POSTGRES_DB: ${WAREHOUSE_DB:-warehouse}
+      POSTGRES_USER: ${WAREHOUSE_USER:-dw}
+      POSTGRES_PASSWORD: ${WAREHOUSE_PASSWORD:-dw}
+    ports:
+      - "5433:5432"
+    volumes:
+      - warehouse-data:/var/lib/postgresql/data
+      - ./warehouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+
+  # spark cluster
+  spark-master:
+    <<: *spark-common
+    hostname: spark-master
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master --host spark-master --port 7077 --webui-port 8080
+    ports:
+      - "8080:8080"
+
+  spark-worker-1:
+    <<: *spark-common
+    hostname: spark-worker-1
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker --host spark-worker-1 --cores 2 --memory 1536m spark://spark-master:7077
+    depends_on:
+      - spark-master
+
+  spark-worker-2:
+    <<: *spark-common
+    hostname: spark-worker-2
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker --host spark-worker-2 --cores 2 --memory 1536m spark://spark-master:7077
+    depends_on:
+      - spark-master
+
+  # orchestration
+  airflow-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: airflow
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+    volumes:
+      - airflow-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      retries: 10
+
+  airflow-init:
+    <<: *airflow-common
+    command: version
+    environment:
+      <<: *airflow-env
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USER:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "${AIRFLOW_PORT:-8082}:8080"
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    hostname: airflow-scheduler
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+      warehouse:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      spark-master:
+        condition: service_started
+
+  # dashboard
+  metabase:
+    image: metabase/metabase:latest
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+      JAVA_OPTS: -Xmx1g
+    ports:
+      - "3000:3000"
+    volumes:
+      - metabase-data:/metabase-data
+    depends_on:
+      - warehouse
+
+volumes:
+  minio-data:
+  warehouse-data:
+  airflow-db-data:
+  airflow-logs:
+  metabase-data:

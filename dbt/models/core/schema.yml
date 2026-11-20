@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: One row per day, with that day's NYC weather (Open-Meteo, Central Park).
+    columns:
+      - name: date_id
+        data_tests:
+          - unique
+          - not_null
+      - name: temp_mean_c
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+
+  - name: dim_station
+    description: One row per Citi Bike station seen in the trips.
+    columns:
+      - name: station_id
+        data_tests:
+          - unique
+          - not_null
+
+  - name: fact_trips
+    description: One row per trip. date_id points to dim_date, station ids point to dim_station.
+    columns:
+      - name: ride_id
+        data_tests:
+          - unique
+          - not_null
+      - name: date_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_id
+      - name: start_station_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_station')
+                field: station_id
+      - name: member_casual
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['member', 'casual']
+      - name: rideable_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['classic_bike', 'electric_bike']
+              config:
+                severity: warn
