@@ -1,6 +1,6 @@
 # Citi Bike and Weather Data Pipeline
 
-Final project for DSAI5102 Data Architecture & Engineering.
+Final project for DSAI 5102 Data Architecture & Engineering.
 
 A monthly batch pipeline that loads New York Citi Bike trips and daily NYC weather, cleans them with Spark, models them in a PostgreSQL warehouse with dbt and shows the results on a Metabase dashboard. Everything runs locally with Docker Compose.
 
@@ -70,7 +70,7 @@ With January to June 2025 loaded (20.1 million trips from 2,337 stations), the s
 
 ## How to run
 
-You need Docker Desktop with at least 8 GB of memory for Docker (10 GB is better) and about 15 GB of free disk.
+You need Docker Desktop with at least 8 GB of memory for Docker (10 GB is better), about 15 GB of free disk, and Git. No Git? On the GitHub page choose Code > Download ZIP, unzip it and `cd citibike-weather-pipeline-main`.
 
 ```bash
 git clone https://github.com/m0d9/citibike-weather-pipeline.git
@@ -90,7 +90,9 @@ To run one month only, without turning on the schedule:
 docker compose exec airflow-scheduler airflow dags test citibike_weather_pipeline 2025-02-15 -c '{"month": "2025-02"}'
 ```
 
-For June use the date `2025-06-01`, not a later day: the DAG's `end_date` is the first day of `PIPELINE_END_MONTH`, so `2025-06-15` is after the end and runs no tasks. Do not run `dags test` for a month while the scheduled runs are on, because both runs would overwrite the same month in the lake at the same time.
+For June use the date `2025-06-01`, not a later day: the DAG's `end_date` is the first day of `PIPELINE_END_MONTH`, so `2025-06-15` is after the end and runs no tasks. Run `dags test` only while the DAG is switched off in Airflow (`airflow dags pause citibike_weather_pipeline`). If it is on, even after the six runs have finished, the scheduler can run the same month at the same time and both runs overwrite it in the lake.
+
+On Windows, run the command in cmd and write the last part as `-c "{\"month\": \"2025-02\"}"`.
 
 | Service | Address | Login |
 |---|---|---|
@@ -125,6 +127,7 @@ To check that the project works from a clean start (this deletes the local data)
 ```bash
 docker compose down -v
 docker compose up -d --build
+docker compose exec airflow-scheduler airflow dags pause citibike_weather_pipeline
 docker compose exec airflow-scheduler airflow dags test citibike_weather_pipeline 2025-02-15 -c '{"month": "2025-02"}'
 docker compose exec warehouse psql -U dw -d warehouse -c "select count(*) from core.fact_trips"
 ```
