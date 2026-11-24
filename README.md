@@ -27,7 +27,7 @@ flowchart LR
 | Part | Tool | Why |
 |---|---|---|
 | Orchestration | Airflow 2.10 | one run per month, retries, backfill of past months |
-| Data lake | MinIO (community image `pgsty/silo`) | S3-compatible storage that runs locally; the official MinIO images were removed from Docker Hub in September 2026 |
+| Data lake | MinIO (community fork `pgsty/silo`) | S3-compatible storage that runs locally; the official MinIO images were removed from Docker Hub in September 2026 |
 | Processing | Spark 3.5 (master + 2 workers) | cleaning and loading millions of trips per month |
 | Warehouse | PostgreSQL 16 | fits the data size, works with dbt and Metabase |
 | Modelling | dbt | star schema and dashboard tables in SQL, with tests |
@@ -101,6 +101,20 @@ docker compose exec airflow-scheduler airflow dags test citibike_weather_pipelin
 Settings like the months to load are listed in `.env.example`. Copy it to `.env` to change them.
 
 To stop everything: `docker compose down` (add `-v` to also delete the data).
+
+## Check the result
+
+When the six monthly runs are done, the Airflow grid shows them all green:
+
+![Airflow runs](docs/airflow_runs.png)
+
+The warehouse should then have 20,127,390 trips:
+
+```bash
+docker compose exec warehouse psql -U dw -d warehouse -c "select count(*) from core.fact_trips"
+```
+
+The log of the `dbt_build` task ends with `PASS=24` (8 models and 16 tests).
 
 ## Project structure
 
