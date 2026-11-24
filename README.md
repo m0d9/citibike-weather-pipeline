@@ -90,6 +90,8 @@ To run one month only, without turning on the schedule:
 docker compose exec airflow-scheduler airflow dags test citibike_weather_pipeline 2025-02-15 -c '{"month": "2025-02"}'
 ```
 
+For June use the date `2025-06-01`, not a later day: the DAG's `end_date` is the first day of `PIPELINE_END_MONTH`, so `2025-06-15` is after the end and runs no tasks. Do not run `dags test` for a month while the scheduled runs are on, because both runs would overwrite the same month in the lake at the same time.
+
 | Service | Address | Login |
 |---|---|---|
 | Airflow | http://localhost:8082 | admin / admin |
@@ -114,7 +116,20 @@ The warehouse should then have 20,127,390 trips:
 docker compose exec warehouse psql -U dw -d warehouse -c "select count(*) from core.fact_trips"
 ```
 
-The log of the `dbt_build` task ends with `PASS=24` (8 models and 16 tests).
+The log of the `dbt_build` task ends with `PASS=28` (8 models and 20 tests). The tests check keys, relationships between the fact and dimension tables, accepted values, and ranges (start hour 0 to 23, duration 1 to 1,440 minutes, distance 0 to 120 km).
+
+## Run it again from scratch
+
+To check that the project works from a clean start (this deletes the local data):
+
+```bash
+docker compose down -v
+docker compose up -d --build
+docker compose exec airflow-scheduler airflow dags test citibike_weather_pipeline 2025-02-15 -c '{"month": "2025-02"}'
+docker compose exec warehouse psql -U dw -d warehouse -c "select count(*) from core.fact_trips"
+```
+
+The count should be 2,030,676 (February only).
 
 ## Project structure
 

@@ -121,6 +121,12 @@ def download_weather(**context):
     print(f"uploaded raw/weather/{month}.json")
 
 
+def report_failure(context):
+    # one clear line in the task log, so a failed month is easy to find in the Airflow UI
+    ti = context["task_instance"]
+    print(f"PIPELINE FAILED: task {ti.task_id}, month {get_month(context)}, try {ti.try_number}")
+
+
 SPARK_SUBMIT = (
     "spark-submit --master $SPARK_MASTER_URL "
     "--conf spark.driver.host=$SPARK_DRIVER_HOST "
@@ -141,7 +147,7 @@ with DAG(
     catchup=True,
     max_active_runs=1,
     params={"month": ""},
-    default_args={"retries": 1, "retry_delay": timedelta(minutes=2)},
+    default_args={"retries": 1, "retry_delay": timedelta(minutes=2), "on_failure_callback": report_failure},
     tags=["citibike"],
 ) as dag:
     buckets = PythonOperator(task_id="create_buckets", python_callable=create_buckets)
